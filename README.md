@@ -1,7 +1,7 @@
 # EmployeeSchedule
 Backend Code challenge.
 
-To create a database and endpoints that enable a user to 
+To create a database and endpoints that enable a user to:
 
   	Add update delete and get details of an employee
 	
