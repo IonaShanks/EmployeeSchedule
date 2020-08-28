@@ -107,6 +107,64 @@ namespace EmployeeSchedule.Controllers
             return false;
         }
 
+        //Comparing two shifts for shift swapping so they don't overlap times of shifts.
+        bool CompareShift(Shift s1, Shift s2, string type)
+        {
+            bool shiftOk = true;
+            bool dateMatch = false;
+
+            //Gets the list of all the employees shifts
+            var empShifts1 = getEmpShifts(s1.EmployeeID);
+            var empShifts2 = getEmpShifts(s2.EmployeeID);
+
+            //Compares the new shift with the employees current shifts to check if the date of the new shift matches any current sheduled shifts
+            foreach (Shift s in empShifts1)
+            {
+                if (s.Date == s2.Date)
+                {
+                    dateMatch = true;
+                }
+            }
+            foreach (Shift s in empShifts2)
+            {
+                if (s.Date == s1.Date)
+                {
+                    dateMatch = true;
+                }
+            }
+
+            //If the dates of the shift match then check the times
+            if (dateMatch)
+            {
+                //Get the employees shift times for specified date
+                var s1Time = getEmpShiftTimes(s1.EmployeeID, s1, type);
+                var s2Time = getEmpShiftTimes(s2.EmployeeID, s2, type);
+
+                //Goes through each time in the employees time list and checks it doesn't match
+                foreach (DateTime t in s1Time)
+                {
+                    var timeList = new List<DateTime>();
+                    for (int i = (s1.EndTime - s2.StartTime).Hours; i >= 0; i--)
+                    {
+                        timeList.Add(s2.StartTime.AddHours(i));
+                    }
+                    foreach (DateTime j in s2Time)
+                    {
+                        if (t == j)
+                        {
+                            shiftOk = false;
+                        }
+                    }
+                }
+            }
+
+            if (!shiftOk)
+            {
+                return true;
+            }
+            return false;            
+        }
+
 
         // GET: api/Shifts
         public IQueryable<Shift> GetShifts()
@@ -142,16 +200,16 @@ namespace EmployeeSchedule.Controllers
             {
                 return BadRequest(ModelState);
             }
+            Shift shiftLkup = shift;
+            //Checks the shift doesn't conflict another
+            if (HasShift(shiftLkup, "Edit"))
+            {
+                return BadRequest("Already has a shift during this time");
+            }
 
             if (id != shift.ShiftID)
             {
                 return BadRequest();
-            }
-
-            //Checks the shift doesn't conflict another
-            if (HasShift(shift))
-            {
-                return BadRequest("Already has a shift during this time");
             }
 
             db.Entry(shift).State = EntityState.Modified;
@@ -175,6 +233,58 @@ namespace EmployeeSchedule.Controllers
             return StatusCode(HttpStatusCode.NoContent);
         }
 
+        // PUT: api/Shifts/5
+        [System.Web.Http.HttpPut]
+        [ResponseType(typeof(void))]
+        public IHttpActionResult SwapShifts(int id, int id2)
+        {
+            Shift shift1 = db.Shifts.Find(id);
+            Shift shift2 = db.Shifts.Find(id2);
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            if (id != shift1.ShiftID && id2 != shift2.ShiftID)
+            {
+                return BadRequest();
+            }
+
+            //Checks the shift doesn't conflict another
+            if (CompareShift(shift1, shift2, ""))
+            {
+                return BadRequest("Already has a shift during this time");
+            }
+
+            int newId1 = shift1.EmployeeID;
+            int newId2 = shift2.EmployeeID;
+            //swaps the employee id on the shifts as long as there is no conflict in shift times
+            shift1.EmployeeID = newId2;
+            shift2.EmployeeID = newId1;
+
+            db.Entry(shift1).State = EntityState.Modified;
+            db.Entry(shift2).State = EntityState.Modified;
+
+            try
+            {
+                db.SaveChanges();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!ShiftExists(id) || !ShiftExists(id2))
+                {
+                    return NotFound();
+                }
+                else
+                {
+                    throw;
+                }
+            }
+
+            return StatusCode(HttpStatusCode.NoContent);
+        }
+
         // POST: api/Shifts
         [ResponseType(typeof(Shift))]
         public IHttpActionResult PostShift(Shift shift)
@@ -185,7 +295,7 @@ namespace EmployeeSchedule.Controllers
             }
 
             //Checks the shift doesn't conflict another
-            if (HasShift(shift))
+            if (HasShift(shift, ""))
             {
                 return BadRequest("Already has a shift during this time");
             }
