@@ -94,15 +94,15 @@ namespace EmployeeSchedule.Controllers
         // GET: api/Shifts/5
         //Use Employee ID to find all the shifts of that specific Employee
         [ResponseType(typeof(Shift))]
-        public IHttpActionResult GetShift(int empId)
+        public IHttpActionResult GetShift(int id)
         {
-            Employee emp = db.Employees.Find(empId);
+            Employee emp = db.Employees.Find(id);
             if (emp == null)
             {
                 return NotFound();
             }
             //Get the shifts for the specific employee
-            var shift = getEmpShifts(emp.EmployeeID);
+            var shift = getEmpShifts(id);
             if (shift == null)
             {
                 return NotFound();
