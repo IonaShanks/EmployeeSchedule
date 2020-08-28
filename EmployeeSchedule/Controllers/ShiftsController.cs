@@ -17,26 +17,56 @@ namespace EmployeeSchedule.Controllers
     {
         private EmployeeScheduleContext db = new EmployeeScheduleContext();
 
-        //Get a list of all the shifts for a specific employee
+        //Returns a list of all the shifts for a specific employee
         public List<Shift> getEmpShifts(int empID)
         {
             var shiftList = new List<Shift>();
-            foreach (Shift s in db.Shifts.Where(r => r.EmployeeID == empID))
+            foreach (Shift s in db.Shifts.Where(r => r.EmployeeID == empID).AsNoTracking())
             {
                 shiftList.Add(s);
             }
             return shiftList;
         }
 
+        //Returns a list of times of all the shifts for a specific employee on a specific date
+        public List<DateTime> getEmpShiftTimes(int empID, Shift newShift, String type)
+        {
+            var empShifts = getEmpShifts(empID);
+            var timeList = new List<DateTime>();
+            //This is required for updating time of a shift but only on an edit (so that you can edit the current shift without getting an error of already having a shift at that time)
+            if (type == "Edit")
+            { 
+                var empShift2 = empShifts.Where(e => e.ShiftID != newShift.ShiftID);
+                foreach (Shift s in empShift2.Where(r => r.Date == newShift.Date))
+                {
+                    for (int i = (s.EndTime - s.StartTime).Hours - 1; i >= 0; i--)
+                    {
+                        timeList.Add(s.StartTime.AddHours(i));
+                    }
+                }
+            }
+            else
+            {
+                foreach (Shift s in empShifts.Where(r => r.Date == newShift.Date))
+                {
+                    for (int i = (s.EndTime - s.StartTime).Hours - 1; i >= 0; i--)
+                    {
+                        timeList.Add(s.StartTime.AddHours(i));
+                    }
+                }
+            }
+            return timeList;
+        }
+
         //Checks shifts are not overlaping or at the same time (true shows a conflict false shows no conflict)
-        bool HasShift(Shift newShift)
+        bool HasShift(Shift newShift, String type)
         {
             bool shiftOk = true;
             bool dateMatch = false;
-
+            
             //Gets the list of all the employees shifts
-            var empShifts = getEmpShifts(newShift.EmployeeID);
-
+            var empShifts = getEmpShifts(newShift.EmployeeID); 
+            
             //Compares the new shift with the employees current shifts to check if the date of the new shift matches any current sheduled shifts
             foreach (Shift s in empShifts)
             {
@@ -49,15 +79,8 @@ namespace EmployeeSchedule.Controllers
             //If the dates of the shift match then check the times
             if (dateMatch)
             {
-                var timeList = new List<DateTime>();
-                //Goes through each of the employees shifts and adds the times to a list for the corresponding date
-                foreach (Shift s in empShifts.Where(r => r.Date == newShift.Date))
-                {
-                    for (int i = (s.EndTime - s.StartTime).Hours - 1; i >= 0; i--)
-                    {
-                        timeList.Add(s.StartTime.AddHours(i));
-                    }
-                }
+                //Get the employees shift times for specified date
+                var timeList = getEmpShiftTimes(newShift.EmployeeID, newShift, type);
 
                 //Goes through each time in the employees time list and checks it doesn't match
                 foreach (DateTime t in timeList)
